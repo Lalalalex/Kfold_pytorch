@@ -64,7 +64,7 @@ class KFold:
         total_loss = 0
         total_accuracy = 0
         with tqdm(dataloader, unit = 'Batch', desc = 'Train') as tqdm_loader:
-            for index, (image_id, image, label) in enumerate(tqdm_loader):
+            for index, (image, label) in enumerate(tqdm_loader):
                 image = image.to(device = device)
                 label = torch.tensor(label.to(device = device), dtype = torch.long)
                 
@@ -89,7 +89,7 @@ class KFold:
         total_accuracy = 0
         with torch.no_grad():
             with tqdm(dataloader, unit = 'Batch', desc = 'Valid') as tqdm_loader:
-                for index, (image_id, image, label) in enumerate(tqdm_loader):
+                for index, (image, label) in enumerate(tqdm_loader):
                     image = image.to(device = "cuda" if torch.cuda.is_available() else "cpu")
                     label = torch.tensor(label.to(device = device), dtype = torch.long)
                 
@@ -109,6 +109,33 @@ class KFold:
             print('\nEpoch {}'.format(epoch + 1))
             self.train_epoch(model, dataloader['train'], loss_function, optimizer, device)
             self.valid_epoch(model, dataloader['valid'], loss_function, device)
+
+    def test_addition(self, k, image, device):
+        with torch.no_grad():
+            image = image.to(device = device)
+            model = self.model_list[0]
+            model.eval()
+            predict = model(image).to(device = device)
+            for i in range(1, k):
+                model = self.model_list[i]
+                model.eval()
+                predict = predict + model(image).to(device = device)
+            predict = predict.argmax(dim = 1)
+            return predict
+
+    def test_vote(self, k, image, device):
+        with torch.no_grad():
+            image = image.to(device = device)
+            model = self.model_list[0]
+            model.eval()
+            predict = model(image).to(device = device).argmax(dim = 1)
+            for i in range(i, k):
+                model = self.model_list[i]
+                model.eval()
+                predict = predict + model(image).to(device = device).argmax(dim = 1)
+                #if same votes, than return the first max
+            predict = predict.argmax(dim = 1)
+            return predict
 
     def run(self, k, dataloader_list, model_list, optimizer_list, loss_function, device, epoch):
         for i in range(k):
