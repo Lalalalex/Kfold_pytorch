@@ -8,7 +8,7 @@
 	* c. [A Sample Dataset Code](#ASampleDatasetCode)
 * 4. [Tutorial](#Tutorial)
 	* a. [Overview](#Overview)
-	* b. [ParamaterS](#ParamaterS)
+	* b. [ParamaterS](#Paramaters)
 ##  1. <a name='CloneRepo'></a>Clone Repo
 ```
 git clone https://github.com/Lalalalex/Kfold_pytorch.git
