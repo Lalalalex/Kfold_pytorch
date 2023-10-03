@@ -1,28 +1,33 @@
 import torch
 from torch.utils.data import DataLoader, Dataset
+import torch.nn as nn
 import copy
 from tqdm import tqdm
+import warnings
+warnings.filterwarnings('ignore')
 from sklearn.metrics import accuracy_score
 
-class KFold:
-    def __init__(self, k: int, dataset: Dataset, model, optimizer, loss_function,
-                 lr = 5e-4, batch_size = 16, num_workers = 4, drop_last = False,
+class KFold():
+    def __init__(self, k: int, dataset: Dataset, model, loss_function,
+                 lr = 5e-4, batch_size = 32, num_workers = 4, drop_last = False,
                  device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
         self.k = k
-        self.dataset = dataset
-        self.model = model
-        self.optimizer = optimizer
+        self.lr = lr
+        self.batch_size = batch_size
+        self.num_workers = num_workers
+        self.drop_last = drop_last
         self.loss_function = loss_function
-        self.dataloader_list = self.generate_dataloader_list(k, dataset, batch_size, num_workers, drop_last)
-        self.model_list = self.generate_model_list(k)
-        self.optimizer_list = self.generate_optimizer_list(k, lr, self.model_list)
+        self.device = device
+        self.dataloader_list = self.generate_dataloader_list(dataset)
+        self.model_list = self.generate_model_list(model)
+        self.optimizer_list = self.generate_optimizer_list()
 
-    def generate_dataloader_list(self, k, dataset, batch_size, num_workers, drop_last):
+    def generate_dataloader_list(self, dataset):
             total_len = len(dataset)
-            fold_len = int(total_len/k)
+            fold_len = int(total_len/self.k)
             dataloader_list = []
 
-            for i in range(k):
+            for i in range(self.k):
                 train_left_left_indices = 0
                 train_left_right_indices = i * fold_len
                 valid_left_indices = train_left_right_indices
@@ -38,25 +43,24 @@ class KFold:
                 train_set = torch.utils.data.dataset.Subset(dataset, train_indices)
                 valid_set = torch.utils.data.dataset.Subset(dataset, valid_indices)
 
-                train_dataloader = DataLoader(train_set, batch_size = batch_size, num_workers = num_workers, drop_last = drop_last)
-                valid_dataloader = DataLoader(valid_set, batch_size = batch_size, num_workers = num_workers, drop_last = drop_last)
+                train_dataloader = DataLoader(train_set, batch_size = self.batch_size, num_workers = self.num_workers, drop_last = self.drop_last)
+                valid_dataloader = DataLoader(valid_set, batch_size = self.batch_size, num_workers = self.num_workers, drop_last = self.drop_last)
 
                 dataloader = {'train': train_dataloader, 'valid': valid_dataloader, 'valid_test': valid_dataloader}
                 dataloader_list.append(dataloader)
 
             return dataloader_list
     
-    def generate_model_list(self, k):
+    def generate_model_list(self, model):
         model_list = []
-        for i in range(k):
-            efficientnet = torch.hub.load('NVIDIA/DeepLearningExamples:torchhub', 'nvidia_efficientnet_b4', pretrained = True)
-            model_list.append(efficientnet)
+        for i in range(self.k):
+            model_list.append(copy.deepcopy(model))
         return model_list
     
-    def generate_optimizer_list(self, k, lr, model_list):
+    def generate_optimizer_list(self):
         optimizer_list = []
-        for i in range(k):
-            optimizer_list.append(torch.optim.AdamW(model_list[i].parameters(), lr = lr))
+        for i in range(self.k):
+            optimizer_list.append(torch.optim.AdamW(self.model_list[i].parameters(), lr = self.lr))
         return optimizer_list
 
     def train_epoch(self, model, dataloader, loss_function, optimizer, device):
@@ -91,7 +95,7 @@ class KFold:
             with tqdm(dataloader, unit = 'Batch', desc = 'Valid') as tqdm_loader:
                 for index, (image, label) in enumerate(tqdm_loader):
                     image = image.to(device = "cuda" if torch.cuda.is_available() else "cpu")
-                    label = torch.tensor(label.to(device = device), dtype = torch.long)
+                    label = torch.tensor(label.to(device = device), dtype = torch.long).detach()
                 
                     predict = model(image).to(device = device)
                     loss = loss_function(predict, label)
@@ -110,35 +114,35 @@ class KFold:
             self.train_epoch(model, dataloader['train'], loss_function, optimizer, device)
             self.valid_epoch(model, dataloader['valid'], loss_function, device)
 
-    def test_addition(self, k, image, device):
+    def test_addition(self, image):
         with torch.no_grad():
-            image = image.to(device = device)
+            image = image.to(device = self.device)
             model = self.model_list[0]
             model.eval()
-            predict = model(image).to(device = device)
-            for i in range(1, k):
+            predict = model(image).to(device = self.device)
+            for i in range(1, self.k):
                 model = self.model_list[i]
                 model.eval()
-                predict = predict + model(image).to(device = device)
+                predict = predict + model(image).to(device = self.device)
             predict = predict.argmax(dim = 1)
             return predict
 
-    def test_vote(self, k, image, device):
+    def test_vote(self, image):
         with torch.no_grad():
-            image = image.to(device = device)
+            image = image.to(device = self.device)
             model = self.model_list[0]
             model.eval()
-            predict = model(image).to(device = device).argmax(dim = 1)
-            for i in range(i, k):
+            predict = model(image).to(device = self.device).argmax(dim = 1)
+            for i in range(1, self.k):
                 model = self.model_list[i]
                 model.eval()
-                predict = predict + model(image).to(device = device).argmax(dim = 1)
-                #if same votes, than return the first max
+                predict = predict + model(image).to(device = self.device).argmax(dim = 1)
             predict = predict.argmax(dim = 1)
+            #if there is same votes, than return the first maximum index
             return predict
 
-    def run(self, k, dataloader_list, model_list, optimizer_list, loss_function, device, epoch):
-        for i in range(k):
+    def run(self, epoch):
+        for i in range(self.k):
             print('\nFold {}'.format(i + 1))
-            self.train_and_valid(dataloader_list[i], model_list[i], optimizer_list[i], loss_function, device, epoch)
-        return model_list
+            self.train_and_valid(self.dataloader_list[i], self.model_list[i], self.optimizer_list[i], self.loss_function, self.device, epoch)
+        return self.model_list
