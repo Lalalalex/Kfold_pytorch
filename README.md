@@ -8,7 +8,7 @@
 	* c. [A Sample Dataset Code](#ASampleDatasetCode)
 * 4. [Tutorial](#Tutorial)
 	* a. [Overview](#Overview)
-	* b. [ParamaterS](#Paramaters)
+	* b. [Paramaters](#Paramaters)
 ##  1. <a name='CloneRepo'></a>Clone Repo
 ```
 git clone https://github.com/Lalalalex/Kfold_pytorch.git
@@ -128,7 +128,7 @@ class KFold():
 
 ```
 
-###  4.2. <a name='ParamaterS'></a>Paramaters
+###  4.2. <a name='Paramaters'></a>Paramaters
 def __init__(self, k: int, dataset: Dataset, model, loss_function,
                  lr = 5e-4, batch_size = 32, num_workers = 4, drop_last = False,
                  device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')):
