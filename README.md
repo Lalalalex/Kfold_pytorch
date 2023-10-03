@@ -1,4 +1,4 @@
-# DL Template for Image Classification
+# KFold API for pytorch
 
 * 1. [Clone Repo](#CloneRepo)
 * 2. [Example Code](#ExampleCode)
