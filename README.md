@@ -21,6 +21,7 @@ pip install -r requirement.txt
 ```python
 import torchvision
 import torchvision.transforms as transforms
+import torch
 from kfold import KFold
 
 transform = transforms.Compose([
@@ -35,12 +36,13 @@ dataset = torchvision.datasets.CIFAR10(root = './data', train = True, download =
 
 resnet18 = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', pretrained = True)
 fc_features = resnet18.fc.in_features
-resnet18.fc = nn.Linear(fc_features, 10)
+resnet18.fc = torch.nn.Linear(fc_features, 10)
 model = resnet18
 
 model = model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 loss_function = torch.nn.CrossEntropyLoss()
 kfold = KFold(5, dataset, model, loss_function)
+kfold.run(10)
 ```
 
 ##  3. <a name='DatasetRequierment'></a>Dataset Requierment
